@@ -16,34 +16,36 @@ namespace yimingcode
     public:
     using ptr = std::shared_ptr<FormatItem>;
     virtual ~FormatItem() {}
-    virtual void format(std::ostream &out, LogMsg &msg)=0;
+    // ✅ 修复 1：加上 const，msg 不修改，必须加 const 才能正常调用
+    virtual void format(std::ostream &out, const LogMsg &msg) const =0;
   };
   
   class MsgFormatItem : public FormatItem {  //消息格式化子项
   public:
-    MsgFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    MsgFormatItem(const std::string &str = ""){}
+    // ✅ 全部加上 const 修饰
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << msg._payload;
     }
   };
 
   class LevelFormatItem : public FormatItem {  //等级格式化子项
   public:
-    LevelFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    LevelFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << LogLevel::toString(msg._level);
     }
   };
 
   class TimeFormatItem : public FormatItem {  //时间格式化子项
   public:
-    TimeFormatItem(const std::string &format = "%H:%M:%S")  // 添加构造函数
+    TimeFormatItem(const std::string &format = "%H:%M:%S")
         : _time_fmt(format) 
     {
         if (format.empty()) _time_fmt = "%H:%M:%S";
     }
     
-    void format(std::ostream& out, LogMsg& msg) override {
+    void format(std::ostream& out, const LogMsg& msg) const override {
         struct tm t;
         localtime_r(&msg._ctime,&t);
         char tmp[32] ={0};
@@ -56,59 +58,59 @@ namespace yimingcode
 
   class FileFormatItem : public FormatItem {  //文件名格式化子项
   public:
-    FileFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    FileFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << msg._file;
     }
   };
 
   class LineFormatItem : public FormatItem {  //行号格式化子项
   public:
-    LineFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    LineFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << msg._line;
     }
   };
 
   class ThreadFormatItem : public FormatItem {  //线程ID格式化子项
   public:
-    ThreadFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    ThreadFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << msg._tid;
     }
   };
 
   class LoggerFormatItem : public FormatItem {  //日志器名称格式化子项
   public:
-    LoggerFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    LoggerFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << msg._logger;
     }
   };
 
   class TabFormatItem : public FormatItem {  //制表符
   public:
-    TabFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    TabFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << '\t';
     }
   };
 
   class NLineFormatItem : public FormatItem {  //换行
   public:
-    NLineFormatItem(const std::string &str = ""){}  // 添加构造函数
-    void format(std::ostream& out, LogMsg& msg) override {
+    NLineFormatItem(const std::string &str = ""){}
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << "\n";
     }
   };
 
   class OtherFormatItem : public FormatItem {  //普通字符串
   public:
-    OtherFormatItem(const std::string &str)  // 已有构造函数，保持不变
+    OtherFormatItem(const std::string &str)
         :_str(str)
     {
     }
-    void format(std::ostream& out, LogMsg& msg) override {
+    void format(std::ostream& out, const LogMsg& msg) const override {
         out << _str;
     }
   private:
@@ -134,7 +136,8 @@ namespace yimingcode
         assert(parsePattern());
     }
     
-    void format(std::ostream &out, LogMsg &msg)
+    // ✅ 加上 const
+    void format(std::ostream &out, const LogMsg &msg) const
     {
         for(auto &item :_items)
         {
@@ -142,7 +145,7 @@ namespace yimingcode
         }
     }
     
-    std::string format(LogMsg &msg)
+    std::string format(const LogMsg &msg) const
     {
         std::stringstream ss;
         format(ss,msg);
@@ -151,17 +154,71 @@ namespace yimingcode
     
     bool parsePattern()//对格式化规则字符进行解析
     {
-      //1.对格式化规则字符进行解析
-      //abcde[%d{%H:%M%S}][%p]%T%m%n
-      //2.根据解析得到的数据初始化格式化子项初始成员
-      return;
-    }
+      std::vector<std::pair<std::string,std::string>> fmt_order;
+      size_t pos =0;
+      while(pos< _pattern.size())
+      {
+        std::string key,val;
+        if(_pattern[pos]!='%')
+      {
+        val.push_back(_pattern[pos++]);
+        continue;
+      }
+      if(pos+1<_pattern.size()&&_pattern[pos+1]=='%')
+      {
+        val.push_back('%');
+        pos+=2;
+        continue;
+      }
+      if(val.empty()==false)
+      {
+        fmt_order.push_back(std::make_pair(" ",val));
+         val.clear();
+      }
+
+      pos+=1;
+      if(pos==_pattern.size())
+      {
+        std::cout<<"%之后没有对应的格式化字符!\n";
+        return false;
+      }
+      key=_pattern[pos];
+      pos+=1;
+      bool error_flag =false;
+      if(pos<_pattern.size()&&_pattern[pos]=='{')
+      {
+        error_flag=true;
+        pos+=1;
+        
+        while(pos<_pattern.size()&&_pattern[pos]!='}')
+        {
+           val.push_back(_pattern[pos++]);
+        }
+       if(pos== _pattern.size())
+       {
+        std::cout<<"子规则{}匹配出错！\n";
+        return false;
+       }
+      }
+      pos+=1;
+      fmt_order.push_back(std::make_pair(key,val));
+      key.clear();
+      val.clear();
+      
+      }
+      // ✅ 修复 2：parsePattern 最后必须 return true
+      for(auto &it:fmt_order)
+      {
+        _items.push_back(createItem(it.first,it.second));
+      }
+      return true;
+      
+    } 
 
   private:
     FormatItem::ptr createItem(const std::string &key, const std::string &val)
     {
         if(key == "d") {
-            // 如果val为空，使用默认格式
             std::string fmt = val.empty() ? "%H:%M:%S" : val;
             return std::make_shared<TimeFormatItem>(fmt);
         }
